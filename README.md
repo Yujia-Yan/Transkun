@@ -62,7 +62,6 @@ optional arguments:
                         The segment hopsize for processing the entire audio file (s)
   --segmentSize SEGMENTSIZE
                         The segment size for processing the entire audio file (s)
-
 ```
 
 ## Handling the dataset
@@ -75,13 +74,11 @@ We assume the data contains only the same sampling rate 44100hz. Therefore for t
 
 Many exisiting works downsample the original audio files to a smaller sampling rate. And it seems quite "conventional" to do downsampling. However, from our perspective, this step is unnecessary:
 
-1.  Spectral processing for getting the mel spectrum only incurs a small computation cost. However, a good quality downsampling algorithm is more expensive than computing the mel spectrum.
+1. Spectral processing for getting the mel spectrum only incurs a small computation cost. However, a good quality downsampling algorithm is more expensive than computing the mel spectrum.
 
 2. Whether or not compute the spectrum from the downsampled version, the size of the input to the neural network is at the same range. 
 
 3. There is no need to load all data into memory as the wav file is random accessible. This work directly random acesses the wav file instead of using a specific file format. 
-
-
 
 ### Generating metadata files
 
@@ -101,7 +98,6 @@ positional arguments:
 optional arguments:
   -h, --help          show this help message and exit
   --noPedalExtension  Do not perform pedal extension according to the sustain pedal
-
 ```
 
 This command will generate train.pt, dev.pt, test.pt in the outputPath.
@@ -122,10 +118,6 @@ Then we call the training script.
 ```bash
 python3 -m transkun.train -h
 ```
-
-
-
- 
 
 ## The Evaluation Module
 
@@ -179,7 +171,7 @@ optional arguments:
   --noDisplay           Do not show the figure.
 ```
 
-![loading-ag-1328](/home/yujia/Programming/Skipping-The-Frame-Level/assets/20c2e505253736ba99ed6be3b90f50183f92ef2a.png)
+![loading-ag-1328](./assets/exampleDev.png)
 
 ### Citation
 
