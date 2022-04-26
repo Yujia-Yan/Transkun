@@ -5,12 +5,12 @@ import os
 import argparse
 
 import pathlib
-import Evaluation
+from . import Evaluation
 
 import collections
 
 from multiprocessing import Pool
-import Data
+from . import Data
 import os
 import warnings
 import glob

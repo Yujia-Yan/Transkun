@@ -8,3 +8,5 @@ pydub
 seaborn
 matplotlib
 tensorboard
+tqdm
+torch_optimizer
