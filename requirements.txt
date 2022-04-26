@@ -1,0 +1,10 @@
+ncls
+pretty_midi
+scipy
+torchaudio
+torch
+mir_eval
+pydub
+seaborn
+matplotlib
+tensorboard
