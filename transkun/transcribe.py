@@ -28,7 +28,6 @@ if __name__ == "__main__":
 
     args = argumentParser.parse_args()
 
-    # path = "./ablations_scaling.pt"
     path = args.weight
     device = args.device
     checkpoint = torch.load(path, map_location = device)

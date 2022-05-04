@@ -126,7 +126,7 @@ class Spectrum(nn.Module):
         return result
 
 class MelSpectrum(nn.Module):
-    def __init__(self, windowSize, f_min, f_max, n_mels, fs, nExtraWins=0, log=False, eps = 1e-5):
+    def __init__(self, windowSize, f_min, f_max, n_mels, fs, nExtraWins=0, log=False, eps = 1e-5, toMono=False):
         super().__init__()
 
 
@@ -145,6 +145,7 @@ class MelSpectrum(nn.Module):
         self.eps = eps
 
         self.spectrogramExtractor = Spectrum(windowSize, nExtraWins)
+        self.toMono = toMono
 
 
     
@@ -155,6 +156,9 @@ class MelSpectrum(nn.Module):
         spectrogram = self.spectrogramExtractor(frames)
 
         spectrogram = (spectrogram).abs().pow(2)
+
+        if self.toMono and len(spectrogram.shape)>=4:
+            spectrogram = spectrogram.mean(dim = -4, keepdim = True)
 
 
         mel = (spectrogram.transpose(-1,-2)@ self.freq2mels).transpose(-1,-2)

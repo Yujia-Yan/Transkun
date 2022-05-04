@@ -95,8 +95,9 @@ def train(workerId, nWorker, filename, runSeed, args):
 
     gradNormHist = MovingBuffer(initValue = 40, maxLen = 10000)
 
-    # augmentator = Augmentator(sampleRate=44100)
     augmentator = None
+    if args.augment:
+        augmentator = Augmentator(sampleRate=44100)
 
     for epoc in range(startEpoch, 1000000):
 
@@ -341,7 +342,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_lr', default = 6e-4, type=float)
     parser.add_argument('--weight_decay', default = 1e-4, type=float)
     parser.add_argument('--nIter', default= 180000,type = int)
-    parser.add_argument('--modelConf', required=False)
+    parser.add_argument('--modelConf', required=False, help = "the path to the model conf file")
+    parser.add_argument('--augment',  action ="store_true", help="do data augmentation")
 
 
 

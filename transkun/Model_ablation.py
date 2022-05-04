@@ -137,6 +137,7 @@ class TransKun(torch.nn.Module):
                                                      fs = conf.fs,
                                                      nExtraWins = conf.nExtraWins,
                                                      log=True,
+                                                     toMono=True
                                                      )
 
     
@@ -206,7 +207,7 @@ class TransKun(torch.nn.Module):
     def processFramesBatch(self, framesBatch):
         
         nBatch = framesBatch.shape[0]
-        nChannel = framesBatch.shape[1]
+        # nChannel = framesBatch.shape[1]
         
         # gain normalization
         framesBatchMean = torch.mean(framesBatch, dim = [1,2,3], keepdim=True)
@@ -216,13 +217,6 @@ class TransKun(torch.nn.Module):
         featuresBatch = self.framewiseFeatureExtractor(framesBatch).contiguous()
 
         # now with shape [nBatch, nAudioChannel, nStep, NFreq, nChannel]
-        # downmix with mel spectrogram
-        if self.training:
-            mixWeight = torch.distributions.Dirichlet(framesBatch.new_ones(featuresBatch.shape[1])).sample( (featuresBatch.shape[0], ))
-            featuresBatch= (mixWeight.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)*featuresBatch).sum(1, keepdims=True)
-        else:
-            featuresBatch = featuresBatch.mean(1, keepdims=True)
-
         nChannel = 1
 
 

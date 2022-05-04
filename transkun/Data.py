@@ -606,7 +606,6 @@ class Augmentator:
             gainRange = (0.25,4),
             # gainRange = (1, 1),
             byPassProb = 0.1,
-            channelDropout = 0.2,
             ):
         self.sampleRate = sampleRate
         self.pitchShiftRange = pitchShiftRange
@@ -623,7 +622,6 @@ class Augmentator:
         self.gainRange = gainRange
         self.contrastRange = contrastRange
         self.byPassProb=byPassProb
-        self.channelDropout = channelDropout
     
 
     def __call__(self, x):
@@ -680,26 +678,12 @@ class Augmentator:
         nSampleOut  = y_out.shape[0] 
 
         if nSampleOut!= nSample:
-            print("size changed!!")
+            print("size changed by sox!!")
             if nSampleOut > nSample:
                 y_out = y_out[:nSample,:]
             else:
                 y_out = np.pad(y_out, ((0,nSample-nSampleOut), (0,0)), 'constant')
             
-        if y_out.shape[1]>1 and random.random()<self.channelDropout:
-            # select the channel to drop
-            print("haha")
-            if random.random()<0.5:
-                y_out= np.stack([y_out[:, 0], y_out[:, 1]*0], axis= -1)
-            else:
-                y_out= np.stack([y_out[:, 0]*0, y_out[:, 1]], axis= -1)
-
-
-
-            # dump x and y for debugging
-            # from scipy.io.wavfile import write
-            # write("testOutX.wav", 44100, x)
-            # write("testOutY.wav", 44100, y_out)
 
 
         return y_out
@@ -734,15 +718,15 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
             hopSizeInSecond = self.hopSizeInSecond
 
             # split the duration into equal size chunks
-            nChunks = math.ceil(duration/self.hopSizeInSecond)
+            nChunks = math.ceil((duration+chunkSizeInSecond)/self.hopSizeInSecond)
 
             for j in range(0, nChunks):
                 if self.ditheringFrames:
                     shift = randGen.random()-0.5
                 else:
                     shift = 0
-                begin = (j+ shift)*hopSizeInSecond
-                end = (j+shift)*hopSizeInSecond+chunkSizeInSecond
+                begin = (j+ shift)*hopSizeInSecond - chunkSizeInSecond/2
+                end = (j+shift)*hopSizeInSecond+chunkSizeInSecond - chunkSizeInSecond/2
 
                 # if duration-begin> hopSizeInSecond:
                 if begin<duration and end>0:
