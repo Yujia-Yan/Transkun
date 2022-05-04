@@ -294,6 +294,7 @@ def train(workerId, nWorker, filename, runSeed, args):
         f1 = valResult["f1"]
 
         # lrScheduler.step(nll)
+        torch.cuda.empty_cache()
 
 
         if workerId == 0:
