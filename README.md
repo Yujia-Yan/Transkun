@@ -1,5 +1,17 @@
 # Piano Transcription with Neural Semi-CRF
 
+This repo contains code for the paper
+
+Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-CRFs, Advances in Neural Information Processing Systems, 2021, 
+
+[OpenReview](https://openreview.net/forum?id=AzB2Pq7UFsA), [paper](https://openreview.net/pdf?id=AzB2Pq7UFsA), [appendix](https://openreview.net/attachment?id=AzB2Pq7UFsA&name=supplementary_material)
+
+## pip installation
+
+```bash
+pip3 install transkun
+```
+
 ## Basic Usage
 
 ### The Semi-CRF Layer
@@ -63,6 +75,8 @@ optional arguments:
   --segmentSize SEGMENTSIZE
                         The segment size for processing the entire audio file (s)
 ```
+
+This command can also be used directly as the command line script 'transkun' if the pip package is installed.
 
 ## Handling the dataset
 
@@ -149,6 +163,8 @@ optional arguments:
 
 Currently, we do not support evaluation of multitrack MIDIs.
 
+This command can also be used directly as the command line script 'transkunEval' if the pip package is installed.
+
 ### Ploting the empirical cumulative distribution function to visualize the onset/offset accuracy
 
 Use the following script to plot the ECDF curve for onset/offset deviations:
@@ -177,9 +193,6 @@ optional arguments:
 
 If you find this repository helpful, please consider citing:
 
-Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-CRFs, Advances in Neural Information Processing Systems, 2021, 
-
-[OpenReview](https://openreview.net/forum?id=AzB2Pq7UFsA), [paper](https://openreview.net/pdf?id=AzB2Pq7UFsA), [appendix](https://openreview.net/attachment?id=AzB2Pq7UFsA&name=supplementary_material)
 
 Bibtex:
 
