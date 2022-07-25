@@ -60,7 +60,7 @@ decoded = crf.decode(forcedStartPos = [4]*NBatch)
 ```bash
 python3 -m transkun.transcribe -h
 
-usage: transcribe.py [-h] [--weight WEIGHT] [--device [DEVICE]] [--segmentHopSize SEGMENTHOPSIZE] [--segmentSize SEGMENTSIZE] audioPath outPath
+usage: transkun [-h] [--weight WEIGHT] [--device [DEVICE]] [--segmentHopSize SEGMENTHOPSIZE] [--segmentSize SEGMENTSIZE] audioPath outPath
 
 positional arguments:
   audioPath             path to the input audio file
@@ -69,14 +69,22 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --weight WEIGHT       path to the pretrained weight
-  --device [DEVICE]     The device used to perform the most computations (optional)
+  --device [DEVICE]     The device used to perform the most computations (optional), DEFAULT: cpu
   --segmentHopSize SEGMENTHOPSIZE
-                        The segment hopsize for processing the entire audio file (s)
+                        The segment hopsize for processing the entire audio file (s), DEFAULT: 10
   --segmentSize SEGMENTSIZE
-                        The segment size for processing the entire audio file (s)
+                        The segment size for processing the entire audio file (s), DEFAULT: 20
 ```
 
-This command can also be used directly as the command line script 'transkun' if the pip package is installed.
+Please note that segmentHopSize and segmentSize should be chosen such that there is an overlap between consecutive segments. 
+The included weight is trained under segmentHopSize = 10 and segmentSize = 20.
+
+This script can also be used directly as the command line command 'transkun' if the pip package is installed, e.g., 
+
+```bash
+$ transkun input.mp3 output.mid
+```
+
 
 ## Handling the dataset
 

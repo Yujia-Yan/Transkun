@@ -8,7 +8,7 @@ requirements= [i.strip() for i in open("requirements.txt").readlines()]
 
 setuptools.setup(
     name="transkun",
-    version="0.1.0",
+    version="0.1.1",
     author="Yujia Yan",
     description='Yet another tool for automatic piano transcription',
     long_description=long_description,

@@ -63,7 +63,7 @@ def main():
     x = torch.from_numpy(audio).to(device)
 
 
-    notesEst = model.transcribe(x, stepInSecond=args.segmentHopSize, segmentSizeInSecond=args.segmentSize, discardSecondHalf=True)
+    notesEst = model.transcribe(x, stepInSecond=args.segmentHopSize, segmentSizeInSecond=args.segmentSize, discardSecondHalf=False)
 
     outputMidi = writeMidi(notesEst)
     outputMidi.write(outPath)
