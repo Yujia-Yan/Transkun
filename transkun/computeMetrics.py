@@ -42,7 +42,7 @@ def eval(args):
     return metrics,audioName
     
 
-if __name__=="__main__":
+def main():
 
     argParser = argparse.ArgumentParser(description = 
             "compute metrics directly from MIDI files." + os.linesep+\
@@ -129,3 +129,5 @@ if __name__=="__main__":
             f.write(json.dumps(result, indent= '\t'))
 
 
+if __name__=="__main__":
+    main()

@@ -355,6 +355,9 @@ def readAudioSlice(audioPath, begin, end, normalize=True):
     
     l = data.shape[0]
 
+    if len(data.shape) == 1:
+        data = data[:, np.newaxis]
+
     result = (data[max(b,0): min(e,l), :])
 
     # print("-----------")
@@ -740,6 +743,9 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
         return len(self.chunksAll)
 
     def __getitem__(self, idx):
+        if idx>self.__len__():
+            raise IndexError()
+
         idx, begin,end = self.chunksAll[idx]
         # print(begin, end)
         notes, audioSlice = self.dataset.fetchData(idx,
@@ -825,6 +831,7 @@ def prepareIntervalsNoQuantize(notes, targetPitch):
         
     result = {"intervals": intervals_all, "endPointRefine": endPointRefine_all, "velocity": velocity_all}
     return result
+
 def prepareIntervals(notes, hopSizeInSecond, targetPitch):
     validateNotes(notes)
     # print("hopSizeInSecond:", hopSizeInSecond)

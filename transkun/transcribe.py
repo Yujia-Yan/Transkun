@@ -16,15 +16,18 @@ def readAudio(path,  normalize= True):
     return audio.frame_rate, y
 
 
-if __name__ == "__main__":
-    argumentParser = argparse.ArgumentParser()
+def main():
+    import pkg_resources
 
+    defaultWeight =  (pkg_resources.resource_filename(__name__, "pretrained/0.1.pt"))
+
+    argumentParser = argparse.ArgumentParser()
     argumentParser.add_argument("audioPath", help = "path to the input audio file")
     argumentParser.add_argument("outPath", help = "path to the output MIDI file")
-    argumentParser.add_argument("--weight", help = "path to the pretrained weight")
-    argumentParser.add_argument("--device", default = "cpu", nargs= "?", help = " The device used to perform the most computations (optional)")
-    argumentParser.add_argument("--segmentHopSize", type=float, default = 10, help = " The segment hopsize for processing the entire audio file (s)")
-    argumentParser.add_argument("--segmentSize", type=float, default = 20, help = " The segment size for processing the entire audio file (s)")
+    argumentParser.add_argument("--weight", default = defaultWeight, help = "path to the pretrained weight")
+    argumentParser.add_argument("--device", default = "cpu", nargs= "?", help = " The device used to perform the most computations (optional), DEFAULT: cpu")
+    argumentParser.add_argument("--segmentHopSize", type=float, default = 10, help = " The segment hopsize for processing the entire audio file (s), DEFAULT: 10")
+    argumentParser.add_argument("--segmentSize", type=float, default = 20, help = " The segment size for processing the entire audio file (s), DEFAULT: 20")
 
     args = argumentParser.parse_args()
 
@@ -66,4 +69,5 @@ if __name__ == "__main__":
     outputMidi.write(outPath)
 
 
-
+if __name__ == "__main__":
+    main()
