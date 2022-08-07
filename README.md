@@ -12,6 +12,13 @@ Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based 
 pip3 install transkun
 ```
 
+The pip package provides a quick command for transcribing piano performance audio into midi:
+
+```bash
+$ transkun input.mp3 output.mid
+```
+
+
 ## Basic Usage
 
 ### The Semi-CRF Layer
