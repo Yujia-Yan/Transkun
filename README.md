@@ -18,6 +18,13 @@ The pip package provides a quick command for transcribing piano performance audi
 $ transkun input.mp3 output.mid
 ```
 
+with cuda:
+
+```bash
+$ transkun input.mp3 output.mid --device cuda
+```
+
+
 
 ## Basic Usage
 
