@@ -11,3 +11,4 @@ tensorboard
 tqdm
 torch_optimizer
 sox
+soxr
