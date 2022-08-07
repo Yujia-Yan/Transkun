@@ -57,7 +57,14 @@ def main():
     fs, audio= readAudio(audioPath)
 
 
-    assert(fs == model.fs)
+    if(fs != model.fs):
+        import soxr
+        audio = soxr.resample(
+                audio,          # 1D(mono) or 2D(frames, channels) array input
+                fs,      # input samplerate
+                model.fs# target samplerate
+)
+
 
 
     x = torch.from_numpy(audio).to(device)
