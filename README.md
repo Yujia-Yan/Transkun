@@ -6,6 +6,7 @@ Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based 
 
 [OpenReview](https://openreview.net/forum?id=AzB2Pq7UFsA), [paper](https://openreview.net/pdf?id=AzB2Pq7UFsA), [appendix](https://openreview.net/attachment?id=AzB2Pq7UFsA&name=supplementary_material)
 
+
 ## pip installation
 
 ```bash
@@ -25,6 +26,8 @@ $ transkun input.mp3 output.mid --device cuda
 ```
 
 
+## Overview
+<img width="1405" alt="image" src="https://user-images.githubusercontent.com/1996534/183318064-db32dbef-500d-4710-93a1-10acd3eb8825.png">
 
 ## Basic Usage
 
