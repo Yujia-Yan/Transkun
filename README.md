@@ -29,6 +29,11 @@ $ transkun input.mp3 output.mid --device cuda
 ## Overview
 <img width="1405" alt="image" src="https://user-images.githubusercontent.com/1996534/183318064-db32dbef-500d-4710-93a1-10acd3eb8825.png">
 
+This system works as follows: 
+1. A score tensor is computed from the input audio that scores every possible intervals for whether or not being an event.
+2. The score tensor computed in (1) is then decoded by the proposed semi-CRF layer to obtain event intervals directly via dynamic programming (viterbi).
+3. Attributes, e.g., velocity and refined onset/offset position, associated with each interval are then predicted from the extracted event intervals from (2).
+
 ## Basic Usage
 
 ### The Semi-CRF Layer
