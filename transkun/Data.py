@@ -1,6 +1,5 @@
 import math
 import numpy as np
-from ncls import FNCLS
 from pathlib import Path
 import time
 import os
@@ -196,6 +195,7 @@ def validateNotes(notes):
 
 
 def createIndexEvents(eventList):
+    from ncls import FNCLS
     # internally uses ncls package
     starts = np.array([_.start for _ in eventList])
     ends = np.array([_.end for _ in eventList])
