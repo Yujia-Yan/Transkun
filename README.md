@@ -153,7 +153,7 @@ After generating the medata files, we can perform training using the dataset. Du
 Firstly, generate a config template file for the model:
 
 ```bash
-mkdir testcheckpoint
+mkdir checkpoint
 python3 -m transkun.generateConfig transkun.Model_ablation > checkpoint/conf.json
 ```
 
