@@ -1,6 +1,6 @@
 # Piano Transcription with Neural Semi-CRF
 
-This repo contains code for the paper
+This repo contains code for the paper for transcribing expressive piano performance into MIDI.
 
 Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-CRFs, Advances in Neural Information Processing Systems, 2021, 
 
