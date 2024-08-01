@@ -8,7 +8,7 @@ import argparse
 
 def readAudio(path,  normalize= True):
     import pydub
-    audio = pydub.AudioSegment.from_mp3(path)
+    audio = pydub.AudioSegment.from_file(path)
     y = np.array(audio.get_array_of_samples())
     y = y.reshape(-1, audio.channels)
     if normalize:
