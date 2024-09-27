@@ -2,9 +2,27 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch_optimizer as optim
+import torch.nn as nn
+import numpy as np
 import copy
+from .LayersTransformer import LearnableSpatialPositionEmbedding
 
 
+
+class MovingBuffer:
+
+    def __init__(self, initValue = None, maxLen= None):
+        from collections import deque
+        self.values = deque(maxlen = maxLen)
+        if initValue is not None:
+            self.step(initValue)
+        
+    def step(self, value):
+        self.values.append(value)
+
+    
+    def getQuantile(self, quantile):
+        return float(np.quantile(self.values, q = quantile))
 
 def checkNoneGradient(model):
     for name, param in model.named_parameters():
@@ -14,13 +32,6 @@ def checkNoneGradient(model):
             print(param.shape)
             print(name)
 
-
-def checkNoneGradient(model):
-    for name, param in model.named_parameters():
-        if param.requires_grad and param.grad is None:
-            print(param)
-            print(param.shape)
-            print(name)
 
 def average_gradients(model, c = None, parallel = True):
     if parallel:
@@ -35,7 +46,7 @@ def average_gradients(model, c = None, parallel = True):
                     # print(param)
                     # print(param.shape)
                 dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
-                param.grad.data /= c 
+                # param.grad.data /= c 
     else:
         checkNoneGradient(model)
         if c is None:
@@ -56,7 +67,8 @@ def load_state_dict_tolerant(model, state_dict):
 
 
 def save_checkpoint(filename, epoch, nIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler):
-    checkpoint = {'conf':model.conf.__dict__,
+    checkpoint = {
+            #'conf':model.conf.__dict__,
             'state_dict': model.state_dict(), 
             'best_state_dict': best_state_dict,
             'epoch':epoch,
@@ -67,6 +79,37 @@ def save_checkpoint(filename, epoch, nIter, model,  lossTracker, best_state_dict
             }
     torch.save(checkpoint, filename)
 
+def getOptimizerGroup(model):
+    param_optimizer = list(model.named_parameters())
+    # exclude GroupNorm and PositionEmbedding from weight decay
+    # no_decay = ['bias', 'LayerNorm', 'GroupNorm, PositionEmbedding']  # Specify the names of parameters to exclude from weight decay
+    # optimizerConfig = [
+        # # Parameters with weight decay
+        # {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': weight_decay},
+        # # Parameters without weight decay
+        # {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    # ]
+    # print([n for n, p in param_optimizer if any(nd in n for nd in no_decay)])
+
+    noDecay = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.GroupNorm) \
+                or isinstance(module, nn.LayerNorm) \
+                or isinstance(module, LearnableSpatialPositionEmbedding):
+            noDecay.extend(list(module.parameters()))
+        else:
+            noDecay.extend([p for n, p in module.named_parameters() if "bias" in n])
+    
+    otherParams  =set(model.parameters()) - set(noDecay)
+    otherParams = [param for param in model.parameters() if param in otherParams]
+    noDecay = set(noDecay)
+    noDecay = [param for param in model.parameters() if param in noDecay]
+
+
+    optimizerConfig = [{"params": otherParams},
+                        {"params": noDecay, "weight_decay":0e-7}]
+
+    return optimizerConfig
 
     
 def initializeCheckpoint(Model,
@@ -74,23 +117,28 @@ def initializeCheckpoint(Model,
                          max_lr,
                          weight_decay,
                          nIter,
-                         confDict):
+                         conf):
 
-    conf = Model.Config()
-    if confDict is not None:
-        conf.__dict__ = confDict
+    # conf = Model.Config()
+    # if confDict is not None:
+        # conf.__dict__ = confDict
 
     model = Model(conf).to(device)
 
+    optimizerGroup = getOptimizerGroup(model)
+
+
     optimizer = optim.AdaBelief(
-                            model.parameters(),
+                            # model.parameters(),
+                            optimizerGroup,
                             max_lr,
                             weight_decouple=True,
-                            eps = 1e-12,
+                            eps = 1e-8,
                             weight_decay=weight_decay,
                             rectify=True)
 
-    lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr, nIter, pct_start = 0.2, cycle_momentum=False, final_div_factor = 2, div_factor = 20)
+
+    lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr, nIter, pct_start = 0.05, cycle_momentum=False, final_div_factor = 2, div_factor = 20)
 
     lossTracker = {'train': [], 'val': []}
     best_state_dict = copy.deepcopy(model.state_dict())
@@ -101,40 +149,46 @@ def initializeCheckpoint(Model,
     return  startEpoch, startIter, model, lossTracker, best_state_dict, optimizer, lrScheduler
     
 
-def load_checkpoint(Model, filename,device, strict=False):
+def load_checkpoint(Model, conf, filename,device, strict=False):
     checkpoint = torch.load(filename, map_location=device)
 
     startEpoch = checkpoint['epoch']
     startIter = checkpoint['nIter']
 
-    conf_dict = checkpoint['conf']
+    # conf_dict = checkpoint['conf']
     
 
-    conf = Model.Config()
-    conf.__dict__ = conf_dict
-
+    # conf = Model.Config()
+    # conf.__dict__ = conf_dict
 
 
     model = Model(conf = conf).to(device)
+
+    optimizerGroup = getOptimizerGroup(model)
     
     optimizer = optim.AdaBelief(
-                            model.parameters(),
-                            2e-4,
+                            # model.parameters(),
+                            optimizerGroup,
+                            1e-5,
                             weight_decouple=True,
-                            eps = 1e-12,
-                            weight_decay = 1e-4,
+                            eps = 1e-8,
+                            weight_decay = 1e-2,
                             rectify=True)
 
-    lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 6e-4, 180000, pct_start = 0.2, cycle_momentum=False, final_div_factor=2, div_factor = 20)
+
+    # lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 2e-4, 100000, pct_start = 0.05, cycle_momentum=False, final_div_factor=2, div_factor = 20)
+    # lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 4e-4, 500000, pct_start = 0.05, cycle_momentum=False, final_div_factor=2, div_factor = 20)
+    lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 4e-4, 500000, pct_start = 0.05, cycle_momentum=False, final_div_factor=2, div_factor = 20)
      
     # debugging flag
-    restartFromTheBest =False
+    restartFromTheBest = False
 
     if restartFromTheBest:
         if not strict:
             load_state_dict_tolerant(model, checkpoint['best_state_dict'])
         else:
             model.load_state_dict(checkpoint['best_state_dict'])
+        # lrScheduler.load_state_dict( checkpoint['lr_scheduler_state_dict'])
     else:
         if not strict:
             load_state_dict_tolerant(model, checkpoint['state_dict'])
@@ -142,9 +196,12 @@ def load_checkpoint(Model, filename,device, strict=False):
             model.load_state_dict(checkpoint['state_dict'])
 
         optimizer.load_state_dict( checkpoint['optimizer_state_dict'])
+
+    # lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 4e-4, 500000, pct_start = 0.05, cycle_momentum=False, final_div_factor=2, div_factor = 20, last_epoch = startIter)
         lrScheduler.load_state_dict( checkpoint['lr_scheduler_state_dict'])
 
-
+    # lrScheduler.total_steps = 500000
+    # print(optimizer.param_groups)
     best_state_dict = checkpoint['best_state_dict']
 
     lossTracker = checkpoint['loss_tracker']

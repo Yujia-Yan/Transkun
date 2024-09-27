@@ -96,8 +96,9 @@ def computeFrameScore(estimated, gt, eventTypes):
     # eventTypes = set([e.pitch for e in estimated] +
     # [gt.pitch for e in estimated])
 
-    if len(estimated)==0 or len(gt)==0:
-        return 0,0,0
+    # originally skiiping empty groundtruth
+    # if len(estimated)==0 or len(gt)==0:
+        # return 0,0,0
 
 
 
@@ -234,8 +235,8 @@ def compareTranscription(estimated, gt, splitPedal=False, computeDeviations = Fa
                 resultGT["pitches"],
                 resultEst["intervals"],
                 resultEst["pitches"],
-                onset_tolerance = 0.1,
-                offset_min_tolerance = 0.1
+                onset_tolerance = 0.8,
+                offset_min_tolerance = 0.8
                 )
 
         # compute deviations 
@@ -243,8 +244,10 @@ def compareTranscription(estimated, gt, splitPedal=False, computeDeviations = Fa
         for idxGT, idxEst in matched:
             intervalGT = resultGT["intervals"][idxGT]
             intervalEST = resultEst["intervals"][idxEst]
+            pitches_midi  = int(resultEst["pitches_midi"][idxEst])
+
             curDiff = intervalGT-intervalEST
-            deviations.append(curDiff.tolist())
+            deviations.append([pitches_midi]+curDiff.tolist())
 
         metrics["deviations"] = deviations
 
@@ -305,10 +308,12 @@ def prepareDataForEvaluation(notes, ccList = [64,67], splitPedal=False):
     if splitPedal:
         intervals = np.array([[n.start, n.end] for n in notes if n.pitch>=0])
         pitches = np.array([midi_to_freq(n.pitch) for n in notes if n.pitch>=0])
+        pitches_midi = np.array([n.pitch for n in notes if n.pitch>=0])
         velocities = np.array([n.velocity for n in notes if n.pitch>=0])
     else:
         intervals = np.array([[n.start, n.end] for n in notes])
         pitches = np.array([midi_to_freq(n.pitch) for n in notes])
+        pitches_midi = np.array([n.pitch for n in notes])
         velocities = np.array([n.velocity for n in notes])
 
     if intervals.shape == (0,):
@@ -334,6 +339,7 @@ def prepareDataForEvaluation(notes, ccList = [64,67], splitPedal=False):
     
     result = { "intervals": intervals,
       "pitches": pitches,
+      "pitches_midi": pitches_midi,
       "velocities": velocities
       }
 

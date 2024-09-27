@@ -5,45 +5,43 @@ import math
 import numpy as np
 
 
+def computeParamSize(module):
+    total_params = sum(p.numel() for p in module.parameters())
+
+    # Convert to millions
+    total_params_millions = total_params / 1e6
+    return total_params_millions
+
 def checkpointByPass(f, *args):
     return f(*args)
 
 def checkpointSequentialByPass(f,n, *args):
     return f(*args)
 
-class MovingBuffer:
+def makeFrame(x, hopSize, windowSize, leftPaddingHalfFrame =True):
+    assert(hopSize<windowSize)
 
-    def __init__(self, initValue = None, maxLen= None):
-        from collections import deque
-        self.values = deque(maxlen = maxLen)
-        if initValue is not None:
-            self.step(initValue)
-        
-    def step(self, value):
-        self.values.append(value)
-
-    
-    def getQuantile(self, quantile):
-        return float(np.quantile(self.values, q = quantile))
-
-def makeFrame(x, hopSize, windowSize, leftPaddingHalfFrame=True):
-
+    nFrame = math.ceil((x.shape[-1])/hopSize)+1
 
     if leftPaddingHalfFrame:
-        x = F.pad(x, (windowSize//2, 0))
+        lPad = windowSize//2
+        rPad = (nFrame-1)*hopSize+windowSize//2 - x.shape[-1]
+    else:
+        lPad = 0
+        rPad = (nFrame-1)*hopSize+windowSize - x.shape[-1]
 
-    # check the total number of frames
-    nFrame = math.floor((x.shape[-1])/hopSize)
-    # print(nFrame)
 
 
-    rPad = nFrame*hopSize+ windowSize-x.shape[-1]-1
-    x = F.pad(x, (0, rPad))
+    x = F.pad(x, (lPad, rPad))
 
 
     frames = x.unfold(-1, windowSize, hopSize)
 
+    assert(frames.shape[-2] == nFrame), (frames.shape[-2], nFrame)
+
+    
     return frames
+
 
 
 class GaussianWindows(nn.Module):

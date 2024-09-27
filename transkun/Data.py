@@ -1,4 +1,6 @@
 import math
+import copy
+import glob
 import numpy as np
 from pathlib import Path
 import time
@@ -16,11 +18,13 @@ import csv
 
 # a local definition of the midi note object
 class Note:
-    def __init__(self, start, end, pitch, velocity):
+    def __init__(self, start, end, pitch, velocity, hasOnset=True, hasOffset=True):
         self.start = start
         self.end = end
         self.pitch = pitch
         self.velocity = velocity
+        self.hasOnset = hasOnset 
+        self.hasOffset = hasOffset
 
     def __repr__(self):
         return str(self.__dict__)
@@ -69,7 +73,7 @@ def parseControlChangeSwitch(ccSeq, controlNumber, onThreshold = 64, endT = None
 
     return seqEvent
 
-def parseEventAll(notesList, ccList, supportedCC = [64,67], extendSustainPedal = True):
+def parseEventAll(notesList, ccList, supportedCC = [64, 66, 67], extendSustainPedal = True, pedal_ext_offset = 0.0):
     
     # CC 64: sustain
     # CC 66: sostenuto
@@ -78,6 +82,10 @@ def parseEventAll(notesList, ccList, supportedCC = [64,67], extendSustainPedal =
 
     notesList = [ Note(**n.__dict__) for n in notesList]
     notesList.sort(key = lambda x: (x.start, x.end,x.pitch))
+
+    for n in notesList:
+        assert n.start < n.end
+
 
     # get the ending time of the last note event for the missing off event at the boundary 
     lastT = max([n.end for n in notesList])
@@ -90,7 +98,17 @@ def parseEventAll(notesList, ccList, supportedCC = [64,67], extendSustainPedal =
         sustainEvents = parseControlChangeSwitch(ccList, controlNumber = 64, endT = lastT)
         sustainEvents.sort(key = lambda x: (x.start, x.end,x.pitch))
 
+        if pedal_ext_offset != 0.0:
+            for n in sustainEvents:
+                n.start += pedal_ext_offset
+                n.end += pedal_ext_offset
+
         notesList = extendPedal(notesList, sustainEvents)
+    
+    else:
+    # remove overlappings, als remove n.start>=n.end
+        notesList = resolveOverlapping(notesList)
+    validateNotes(notesList)
 
 
     eventSeqs = [notesList]
@@ -145,7 +163,7 @@ def extendPedal(note_events, pedal_events):
         nOut = len(ex_note_events)
         assert(nOut == nIn)
 
-
+        ex_note_events = resolveOverlapping(ex_note_events)
         validateNotes(ex_note_events)
         return ex_note_events
 
@@ -163,7 +181,8 @@ def resolveOverlapping(note_events):
     for note_event  in note_events:
 
         midi_note = note_event.pitch
-        note_event.end = max(note_event.start+1e-5, note_event.end)
+        # note_event.end = max(note_event.start+1e-5, note_event.end)
+        # note_event.end = max(note_event.start+1e-5, note_event.end)
 
         if midi_note in buffer_dict.keys():
             _idx = buffer_dict[midi_note]
@@ -174,9 +193,22 @@ def resolveOverlapping(note_events):
         
         buffer_dict[midi_note] = idx
         idx += 1
+
         ex_note_events.append(note_event)
 
     ex_note_events.sort(key = lambda x: (x.start, x.end,x.pitch))
+
+    # else:
+        # print("overlappingOnsetOffset", note_event)
+
+    # remove all notes that has start == end
+    n1 = len(ex_note_events)
+    error_notes = [n for n in ex_note_events if not n.start<n.end]
+    ex_note_events = [n for n in ex_note_events if n.start<n.end]
+    n2 = len(ex_note_events)
+    if n1!=n2:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(error_notes)
 
 
     validateNotes(ex_note_events)
@@ -189,6 +221,8 @@ def validateNotes(notes):
         if len(pitches[n.pitch])>0:
             nPrev = pitches[n.pitch][-1]
             assert n.start >= nPrev.end, str(n)+ str(nPrev)
+        
+        assert n.start < n.end, n
 
         pitches[n.pitch].append(n)
 
@@ -259,14 +293,14 @@ def createDataset(datasetPath, extendPedal = True):
 
     return samplesAll
 
-def parseMIDIFile(midiPath, extendSustainPedal=False):
+def parseMIDIFile(midiPath, extendSustainPedal=False, pedal_ext_offset = 0.0):
     # hack for the maps dataset
     pretty_midi.pretty_midi.MAX_TICK = 1e10
     midiFile = pretty_midi.PrettyMIDI(midiPath)
     assert(len(midiFile.instruments) == 1)
 
     inst = midiFile.instruments[0]
-    events = parseEventAll(inst.notes, inst.control_changes, extendSustainPedal=extendSustainPedal)
+    events = parseEventAll(inst.notes, inst.control_changes, extendSustainPedal=extendSustainPedal, pedal_ext_offset = pedal_ext_offset)
     return events
 
 
@@ -347,9 +381,13 @@ def readAudioSlice(audioPath, begin, end, normalize=True):
     from scipy.io import wavfile
     import scipy.io
     fs, data = wavfile.read(audioPath, mmap = True)
+        
     b = math.floor((begin)*fs)
-    dur = round((end-begin)*fs)
+    e = math.floor(end*fs)
+    dur = e - b 
+    # dur = math.ceil((end-begin)*fs)
     e = b+ dur
+    # print(dur)
 
     # handle the case where b is negative
     
@@ -383,10 +421,13 @@ def readAudioSlice(audioPath, begin, end, normalize=True):
     if lPad >0 or rPad>0:
         result = np.pad(result,  ((lPad, rPad),(0,0)), 'constant')
 
-    return result 
+    return result, fs
 
-def writeMidi(notes):
-    outputMidi = pretty_midi.PrettyMIDI(resolution=32767)
+# resolution can be as high as 32767, however it may not be supported by certain DAW
+def writeMidi(notes, resolution = 960): 
+    validateNotes(notes)
+    # outputMidi = pretty_midi.PrettyMIDI(resolution=32767)
+    outputMidi = pretty_midi.PrettyMIDI(resolution=resolution)
 
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
     piano= pretty_midi.Instrument(program = piano_program)
@@ -394,7 +435,10 @@ def writeMidi(notes):
 
     for note in notes:
         if note.pitch>0:
-            note = pretty_midi.Note(** note.__dict__)
+            note = pretty_midi.Note(start = note.start,
+                                    end = note.end,
+                                    pitch = note.pitch,
+                                    velocity = note.velocity)
             piano.notes.append(note)
         else:
             cc_on = pretty_midi.ControlChange(-note.pitch, note.velocity, note.start)
@@ -493,15 +537,25 @@ class DatasetMaestro:
         notes = [e["notes"][int(_)] for _ in noteIndices]
         # print("be",begin,end)
 
+        # for handling notes that goes beyond the current window
 
         if notesStrictlyContained:
-            notes = [_ for _ in notes if _.start>= begin and _.end<end]
+            # notes = [_ for _ in notes if _.start>= begin and _.end<end]
+            notes = [Note( _.start-begin,
+                           _.end-begin,
+                           _.pitch, _.velocity)
+                           for _ in notes if _.start>=begin and _.end<end]
+            
         else:
-            # trim the notes by the boudnary
-            notes = [Note(max(_.start,begin), min(_.end ,end), _.pitch, _.velocity)  for _ in notes]
+            # trim the notes by the boudnary, notes overlapping between segments will be merged during inference
+            notes = [Note(max(_.start,begin) - begin,
+                          min(_.end ,end) - begin, 
+                          _.pitch, 
+                          _.velocity,
+                          _.start>=begin,
+                          _.end<end)  for _ in notes]
 
 
-        notes = [Note(_.start-begin, _.end-begin, _.pitch, _.velocity)  for _ in notes]
         # for n in notes:
             # assert(n.start>=0), n
             # assert(n.end<=end-begin), n
@@ -511,13 +565,13 @@ class DatasetMaestro:
         audioPath = e["audio_filename"]
         audioPath = os.path.join(self.datasetPath, audioPath)
 
-        audioSlice = readAudioSlice(audioPath, begin,end, audioNormalize)
+        audioSlice, fs = readAudioSlice(audioPath, begin,end, audioNormalize)
 
         # if self.transforms is not None:
             # for t in self.transforms:
                 # notes, audioSlice = t(notes, audioSlice)
 
-        return notes, audioSlice
+        return notes, audioSlice, fs
 
         
     def sampleSlice(self, durationInSecond, audioNormalize= True, notesStrictlyContained=True):
@@ -538,7 +592,7 @@ class DatasetMaestro:
 
         notes, audioSlice = self.fetchData(idx, begin,end, audioNormalize, notesStrictlyContained)
 
-        return notes, audioSlice
+        return notes, audioSlice, fs
 
 def sampleFromRange(valRange, log=False, triangular = False):
     l, r = valRange
@@ -691,6 +745,103 @@ class Augmentator:
 
         return y_out
 
+class AugmentatorAudiomentations:
+    def __init__(self,
+                 sampleRate = 44100,
+                 pitchShiftRange = (-0.2, 0.2),
+                 eqDBRange =  (-3, 3),
+                 snrRange = (3, 40),
+                 convIRFolder = None,
+                 noiseFolder = None,
+                 ):
+        from audiomentations import AddGaussianSNR, Compose, PitchShift,AddShortNoises, ApplyImpulseResponse, AddBackgroundNoise, SevenBandParametricEQ, PolarityInversion, Reverse
+
+        transformList = [
+                    PitchShift(*pitchShiftRange, p = 0.5),
+                    SevenBandParametricEQ( *eqDBRange, p = 0.5)
+                ]
+
+        self.transform = Compose(transformList)
+        
+        
+        if convIRFolder is not None:
+            irPath = Path(convIRFolder)
+            fileList = list(irPath.glob(os.path.join('**','*.wav')))
+            self.reverb = ApplyImpulseResponse(fileList, p = 0.5, lru_cache_size = 2000, leave_length_unchanged = True)
+            print("aug: convIR enabled")
+        else:
+            self.reverb = None
+
+        transformNoiseList = []
+        if noiseFolder is not None:
+            noisePath = Path(noiseFolder)
+            fileList = list(noisePath.glob(os.path.join('**','*.wav')))
+
+            noiseTrans = Compose([ 
+                    PolarityInversion(),
+                    Reverse(),
+                    ])
+
+            transformNoiseList.append( 
+                    AddBackgroundNoise(
+                        fileList,
+                        *snrRange,
+                        p = 0.5,
+                        lru_cache_size = 256,
+                        noise_transform = noiseTrans))
+
+            print("aug: noise enabled")
+
+        transformNoiseList.append(
+            AddGaussianSNR(
+                    min_snr_db = snrRange[0],
+                    max_snr_db = snrRange[1],
+                    p = 0.5)
+            )
+
+        self.transformNoise = Compose(transformNoiseList)
+        self.sampleRate = sampleRate
+
+    def __call__(self, x):
+
+
+        x = copy.deepcopy(x)
+        x = x.T 
+
+        # randomly downmix channels
+        if len(x.shape) == 2:
+            nChannel = x.shape[0]
+
+            weight = 2*np.random.rand(1, nChannel)-1
+            weight = (weight+1e-8)/(np.sum(np.abs(weight))+1e-8)
+
+            x = np.matmul(weight, x)
+            x = x.astype(np.float32)
+
+        # x = x[:]
+        x = x.squeeze(0)
+
+        x = self.transform(x, sample_rate = self.sampleRate)
+
+        # apply transform before impulse response
+        if self.reverb is not None:
+            xReverb = self.reverb(x, sample_rate = self.sampleRate)
+            
+            # randomize the wet/dry ratio
+            alpha = random.random()
+
+            x = alpha*x + (1-alpha)*xReverb
+
+
+
+        x = self.transformNoise(x, sample_rate = self.sampleRate)
+
+        x = x[None, :]
+
+        x = x.T
+
+        return x
+
 
 class DatasetMaestroIterator(torch.utils.data.Dataset):
     def __init__(self,
@@ -721,19 +872,25 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
             hopSizeInSecond = self.hopSizeInSecond
 
             # split the duration into equal size chunks
+            # add 1 more for safe guarding the boundary
             nChunks = math.ceil((duration+chunkSizeInSecond)/self.hopSizeInSecond)
 
-            for j in range(0, nChunks):
+            hopPerChunk = math.ceil(chunkSizeInSecond/self.hopSizeInSecond)
+
+            for j in range(-hopPerChunk, nChunks+hopPerChunk):
                 if self.ditheringFrames:
                     shift = randGen.random()-0.5
                 else:
                     shift = 0
                 begin = (j+ shift)*hopSizeInSecond - chunkSizeInSecond/2
-                end = (j+shift)*hopSizeInSecond+chunkSizeInSecond - chunkSizeInSecond/2
+                # end = (j+ shift)*hopSizeInSecond + chunkSizeInSecond/2
+                end = begin+chunkSizeInSecond
 
                 # if duration-begin> hopSizeInSecond:
-                if begin<duration and end>0:
-                    chunksAll.append( (idx, begin, end))
+
+                # add empty frames
+                if begin<duration and end > 0:
+                    chunksAll.append((idx, begin, end))
 
    
         randGen.shuffle(chunksAll)
@@ -748,7 +905,7 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
 
         idx, begin,end = self.chunksAll[idx]
         # print(begin, end)
-        notes, audioSlice = self.dataset.fetchData(idx,
+        notes, audioSlice, fs = self.dataset.fetchData(idx,
                                begin, 
                                end, 
                                audioNormalize = self.audioNormalize,
@@ -763,6 +920,7 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
 
         sample = {"notes": notes,
                   "audioSlice": audioSlice,
+                  "fs": fs,
                   "begin": begin}
 
 
@@ -770,6 +928,44 @@ class DatasetMaestroIterator(torch.utils.data.Dataset):
 
 def collate_fn(batch):
     return batch
+
+def collate_fn_batching(batch):
+    notesBatch = [sample["notes"] for sample in batch]
+    audioSlices = [torch.from_numpy(sample["audioSlice"]) for sample in batch]
+
+    nAudioSamplesMin = min( [_.shape[0] for _ in audioSlices])
+    nAudioSamplesMax = max( [_.shape[0] for _ in audioSlices])
+
+    assert nAudioSamplesMax-nAudioSamplesMin < 2
+    
+    audioSlices = [_[:nAudioSamplesMin] for _ in audioSlices]
+
+    audioSlices = torch.stack(
+            audioSlices, dim = 0)
+
+    return {"notes": notesBatch, "audioSlices":audioSlices} 
+    
+
+
+def collate_fn_randmized_len(batch):
+    batchNew = []
+    r = random.random()*0.5 + 0.5
+
+    for sample in batch:
+        fs = sample["fs"]
+        nSample = sample["audioSlice"].shape[0]
+        sample["audioSlice"] = sample["audioSlice"][: math.ceil(nSample*r), :]
+
+        T = math.ceil(nSample*r)/fs
+
+        notes = [_ for _ in sample["notes"] if  _.end< T ]
+        sample["notes"] = notes
+        
+        batchNew.append(sample)
+
+
+
+    return batchNew
 
 
 
@@ -851,10 +1047,13 @@ def prepareIntervals(notes, hopSizeInSecond, targetPitch):
     intervals_all = []
     velocity_all = []
     endPointRefine_all = []
+    endPointPresence_all = []
+    
     
     for p in targetPitch:
         intervals = []
         endPointRefine = []
+        endPointPresence = []
         velocity = []
         # print("pitch:", p)
         for n in tracks[p]:
@@ -873,6 +1072,7 @@ def prepareIntervals(notes, hopSizeInSecond, targetPitch):
 
 
             tmp = ( start_quantized, end_quantized)
+            tmpPresence = (n.hasOnset, n.hasOffset)
             # print(n)
 
             # check if two consecutive notes can be seaprated by interval representation
@@ -888,9 +1088,11 @@ def prepareIntervals(notes, hopSizeInSecond, targetPitch):
                 # two consecutive note on event, treat as the same note, use the same velocity
                 intervals[-1] = (intervals[-1][0], end_quantized)
                 endPointRefine[-1] = (endPointRefine[-1][0], end_refine)
+                endPointPresence[-1] = (endPointPresence[-1][0], n.hasOffset)
             else:
                 intervals.append(tmp)
                 endPointRefine.append((start_refine, end_refine) )
+                endPointPresence.append(tmpPresence)
                 velocity.append(curVelocity)
                 
 
@@ -900,10 +1102,13 @@ def prepareIntervals(notes, hopSizeInSecond, targetPitch):
         
         intervals_all.append(intervals)
         endPointRefine_all.append(endPointRefine)
+        endPointPresence_all.append(endPointPresence)
         velocity_all.append(velocity)
 
-        
-    result = {"intervals": intervals_all, "endPointRefine": endPointRefine_all, "velocity": velocity_all}
+    result = {"intervals": intervals_all,
+              "endPointRefine": endPointRefine_all, 
+              "endPointPresence": endPointPresence_all, 
+              "velocity": velocity_all}
     return result
 
     

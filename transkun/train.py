@@ -1,19 +1,24 @@
 import os
 import sys
+import random
 
-from .Model_ablation import *
-import torch_optimizer as optim
+# from .Model_ablation import *
+# import torch_optimizer as optim
 
 from torch.utils.tensorboard import SummaryWriter
 
 from . import Data
 import copy
+import time
+import numpy as np
+import math
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from .TrainUtil import *
 import argparse
 
+import moduleconf
 
 def train(workerId, nWorker, filename, runSeed, args):
     parallel = True
@@ -27,35 +32,36 @@ def train(workerId, nWorker, filename, runSeed, args):
 
     device = torch.device("cuda:"+str(workerId%torch.cuda.device_count()) if torch.cuda.is_available() else "cpu")
     torch.cuda.set_device(device)
+    random.seed(workerId+int(time.time()))
     # torch.autograd.set_detect_anomaly(True)
     np.random.seed(workerId + int(time.time()))
     torch.manual_seed(workerId+int(time.time()))
     torch.cuda.manual_seed(workerId+ int(time.time()))
 
+    if args.allow_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = True 
+        torch.backends.cudnn.allow_tf32 = True 
+
+
+    # obtain the Model Module
+    confManager = moduleconf.parseFromFile(args.modelConf)
+    TransKun = confManager["Model"].module.TransKun
+    conf = confManager["Model"].config
+
+
+
     if workerId == 0:
         # if the saved file does not exist
         if not os.path.exists(filename):
             print("initializing the model...")
-            # Model conf
-            if args.modelConf is None:
-                conf = None
-            else:
-                # read the config file
-                import json
-                with open(args.modelConf, 'r') as f:
-                    conf = json.load(f)
-                    conf =conf[ next(iter(conf))]
-                    print(conf)
 
-
-                
             startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler = initializeCheckpoint(
                                 TransKun,
                                 device = device,
                                 max_lr= args.max_lr,
                                 weight_decay = args.weight_decay,
                                 nIter = args.nIter,
-                                confDict = conf)
+                                conf = conf)
 
 
             save_checkpoint(filename, startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler)
@@ -64,7 +70,7 @@ def train(workerId, nWorker, filename, runSeed, args):
         dist.barrier()
         
 
-    startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler= load_checkpoint(TransKun, filename,device)
+    startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler= load_checkpoint(TransKun, conf, filename,device)
     print("#{} loaded".format(workerId))
 
 
@@ -75,8 +81,8 @@ def train(workerId, nWorker, filename, runSeed, args):
     datasetPicklePath = args.datasetMetaFile_train
     datasetPicklePath_val = args.datasetMetaFile_val
 
-    dataset = DatasetMaestro(datasetPath, datasetPicklePath)
-    datasetVal = DatasetMaestro(datasetPath, datasetPicklePath_val)
+    dataset = Data.DatasetMaestro(datasetPath, datasetPicklePath)
+    datasetVal = Data.DatasetMaestro(datasetPath, datasetPicklePath_val)
 
     print("#{} loaded".format(workerId))
 
@@ -90,31 +96,40 @@ def train(workerId, nWorker, filename, runSeed, args):
 
     # this iterator should be constructed each time
     batchSize = args.batchSize
-    hopSize =  args.hopSize
-    chunkSize = args.chunkSize
+
+    if args.hopSize is None:
+        hopSize = conf.segmentHopSizeInSecond
+    else:
+        hopSize = args.hopSize
+
+    if args.chunkSize is None:
+        chunkSize =  conf.segmentSizeInSecond
+    else:
+        chunkSize = args.chunkSize
 
     gradNormHist = MovingBuffer(initValue = 40, maxLen = 10000)
 
     augmentator = None
     if args.augment:
-        augmentator = Augmentator(sampleRate=44100)
+        augmentator = Data.AugmentatorAudiomentations(sampleRate=44100, noiseFolder = args.noiseFolder, convIRFolder = args.irFolder)
 
     for epoc in range(startEpoch, 1000000):
+        # average length will be chunkSize
+        dataIter = Data.DatasetMaestroIterator(dataset, hopSize, chunkSize, seed = epoc*100+runSeed, augmentator = augmentator, notesStrictlyContained=False)
 
-        
-        dataIter = DatasetMaestroIterator(dataset, hopSize, chunkSize, seed = epoc*100+runSeed, augmentator = augmentator, notesStrictlyContained=True)
         if parallel:
             sampler = torch.utils.data.distributed.DistributedSampler(dataIter)
             sampler.set_epoch(epoc)
-            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn , num_workers=args.dataLoaderWorkers, sampler = sampler)
+            # dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn, num_workers=args.dataLoaderWorkers, sampler = sampler, drop_last = True, prefetch_factor = 3)
+            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn_batching, num_workers=args.dataLoaderWorkers, sampler = sampler, drop_last = True, prefetch_factor = max(4, args.dataLoaderWorkers))
         else:
-            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn , num_workers=args.dataLoaderWorkers, shuffle=True)
+            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn_batching, num_workers=args.dataLoaderWorkers, shuffle=True, dropout_last=True, prefetch_factor = max(4, args.dataLoaderWorkers))
 
 
         lossAll = []
 
         # curLRScheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr = 5e-5, max_lr = 1e-4, step_size_up = len(dataloader)//10*5, step_size_down = len(dataloader)//10*5, cycle_momentum=False)
-
+        globalStepWarmupCutoff = globalStep+500
 
         for idx, batch in enumerate(dataloader):
             if workerId ==0:
@@ -149,9 +164,23 @@ def train(workerId, nWorker, filename, runSeed, args):
 
 
 
-            notesBatch = [sample["notes"] for sample in batch]
-            audioSlices = torch.stack(
-                    [torch.from_numpy(sample["audioSlice"]) for sample in batch], dim = 0) . to(device)
+            # notesBatch = [sample["notes"] for sample in batch]
+            # audioSlices = [torch.from_numpy(sample["audioSlice"]) for sample in batch]
+            # # make sure all having the same number of samples
+
+            # nAudioSamplesMin = min( [_.shape[0] for _ in audioSlices])
+            # nAudioSamplesMax = max( [_.shape[0] for _ in audioSlices])
+
+            # assert nAudioSamplesMax-nAudioSamplesMin < 2
+            
+            # audioSlices = [_[:nAudioSamplesMin] for _ in audioSlices]
+
+            # audioSlices = torch.stack(
+                    # audioSlices, dim = 0) . to(device)
+
+            notesBatch = batch["notes"]
+            audioSlices = batch["audioSlices"].to(device)
+
             audioLength = audioSlices.shape[1]/model.conf.fs
 
             logp = model.log_prob(audioSlices, notesBatch)
@@ -180,6 +209,7 @@ def train(workerId, nWorker, filename, runSeed, args):
             totalSEOF = totalSEOF + stats["seOFForced"]
 
 
+            # checkNoneGradient(model)
     
             if parallel:
                 dist.all_reduce(totalLoss.data)
@@ -196,7 +226,7 @@ def train(workerId, nWorker, filename, runSeed, args):
                     dist.all_reduce(totalSEVelocity.data)
 
 
-            average_gradients(model, totalLen, parallel)
+                average_gradients(model, totalLen, parallel)
 
             # compute gradient clipping value
 
@@ -215,7 +245,13 @@ def train(workerId, nWorker, filename, runSeed, args):
 
             optimizer.step()
             # curLRScheduler.step()
-            lrScheduler.step()
+            
+            try:
+                if globalStep> globalStepWarmupCutoff:
+                    lrScheduler.step()
+            except:
+                # continue after the final iteration
+                pass
 
 
             if workerId == 0:
@@ -265,12 +301,12 @@ def train(workerId, nWorker, filename, runSeed, args):
                 lossAll.append(loss.item())
 
 
-                if idx%400==399:
+                if idx%2000 ==1999:
                     save_checkpoint(filename, epoc+1, globalStep+1, model,  lossTracker, best_state_dict, optimizer, lrScheduler)
                     print("saved")
 
             globalStep+= 1
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
 
 
         if workerId == 0:
@@ -280,12 +316,12 @@ def train(workerId, nWorker, filename, runSeed, args):
         
 
         
-        dataIterVal = DatasetMaestroIterator(datasetVal, hopSizeInSecond = hopSize, chunkSizeInSecond=chunkSize, notesStrictlyContained=True, seed = runSeed+epoc*100) 
+        dataIterVal = Data.DatasetMaestroIterator(datasetVal, hopSizeInSecond = conf.segmentHopSizeInSecond, chunkSizeInSecond = chunkSize, notesStrictlyContained=False, seed = runSeed+epoc*100) 
         if parallel:
             samplerVal = torch.utils.data.distributed.DistributedSampler(dataIterVal)
-            dataloaderVal= torch.utils.data.DataLoader(dataIterVal, batch_size = batchSize, collate_fn = Data.collate_fn , num_workers=0, sampler = samplerVal)
+            dataloaderVal= torch.utils.data.DataLoader(dataIterVal, batch_size = 2*batchSize, collate_fn = Data.collate_fn , num_workers=args.dataLoaderWorkers, sampler = samplerVal)
         else:
-            dataloaderVal= torch.utils.data.DataLoader(dataIterVal, batch_size = batchSize, collate_fn = Data.collate_fn , num_workers=1, shuffle=True)
+            dataloaderVal= torch.utils.data.DataLoader(dataIterVal, batch_size = 2*batchSize, collate_fn = Data.collate_fn , num_workers=args.dataLoaderWorkers, shuffle=True)
 
         model.eval()
         valResult = doValidation(model, dataloaderVal, parallel = parallel, device = device)
@@ -306,10 +342,9 @@ def train(workerId, nWorker, filename, runSeed, args):
             print('result:', valResult)
 
             for key in valResult:
-                writer.add_scalar('Loss/val/'+ key, valResult[key], epoc)
+                writer.add_scalar('val/'+ key, valResult[key], epoc)
 
             if f1 >= max(lossTracker['val'])*1.00:
-                # Validation is noisy so we set a threshold for picking the model
                 print('best updated')
                 best_state_dict = copy.deepcopy(model.state_dict())
 
@@ -329,22 +364,25 @@ if __name__ == '__main__':
                                          default = '127.0.0.1')
 
     parser.add_argument('--master_port', help='master port number for distributed training', default = "29500")
+    parser.add_argument('--allow_tf32', action = "store_true")
     parser.add_argument('--datasetPath', required = True)
     parser.add_argument('--datasetMetaFile_train', required = True)
     parser.add_argument('--datasetMetaFile_val', required = True)
 
-    parser.add_argument('--batchSize', default=2, type=int)
-    parser.add_argument('--hopSize', default=10, type=float)
-    parser.add_argument('--chunkSize', default=20, type=float)
+    parser.add_argument('--batchSize', default=4, type=int)
+    parser.add_argument('--hopSize', required=False, type=float)
+    parser.add_argument('--chunkSize', required=False, type=float)
     parser.add_argument('--dataLoaderWorkers', default = 2, type=int)
     parser.add_argument('--gradClippingQuantile', default = 0.8, type=float)
 
 
-    parser.add_argument('--max_lr', default = 6e-4, type=float)
+    parser.add_argument('--max_lr', default = 2e-4, type=float)
     parser.add_argument('--weight_decay', default = 1e-4, type=float)
     parser.add_argument('--nIter', default= 180000,type = int)
-    parser.add_argument('--modelConf', required=False, help = "the path to the model conf file")
+    parser.add_argument('--modelConf', required=True, help = "the path to the model conf file")
     parser.add_argument('--augment',  action ="store_true", help="do data augmentation")
+    parser.add_argument('--noiseFolder',  required = False)
+    parser.add_argument('--irFolder',  required = False)
 
 
 
@@ -356,11 +394,11 @@ if __name__ == '__main__':
     saved_filename = args.saved_filename
 
 
-
+    runSeed = int(time.time())
 
 
     if num_processes == 1:
-        train(0, 1, saved_filename)
+        train(0, 1, saved_filename, runSeed, args)
     else:
-        mp.spawn(fn=train, args=(num_processes, saved_filename, int(time.time()), args),  nprocs = num_processes, join=True, daemon=False)
+        mp.spawn(fn=train, args=(num_processes, saved_filename, runSeed, args),  nprocs = num_processes, join=True, daemon=False)
 

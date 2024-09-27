@@ -95,7 +95,6 @@ class PreLayer(nn.Module):
         self.nEntryOut = testVec.shape[-1]
 
 
-        # testing to get the output dimension
         
 
 
@@ -396,7 +395,6 @@ class TransKun(torch.nn.Module):
 
             nGT= metrics["nGT"]
             nEst= metrics["nEst"]
-            nGT = len(gt)
 
             nCorrect = r*nGT
 
@@ -578,7 +576,6 @@ class TransKun(torch.nn.Module):
         assert(nSymbols*nBatch == len(path))
 
         # also get the last position for each path for forced decoding
-        # endPos = 
         if onsetBound is not None:
             path = [[e for e in _ if e[0]<onsetBound] for _ in path]
         
@@ -725,6 +722,7 @@ class TransKun(torch.nn.Module):
                          velocity = curVelocity)
                     
                     notes[idx].append(curNote)
+
 
                     nCount+= 1
 

@@ -1,9 +1,10 @@
-
-import torch
-from .Model_ablation import *
-
-
 import argparse
+
+from .Data import writeMidi
+import torch
+import moduleconf
+import numpy as np
+from .Util import computeParamSize
 
 
 def readAudio(path,  normalize= True):
@@ -17,29 +18,43 @@ def readAudio(path,  normalize= True):
 
 
 def main():
+
     import pkg_resources
 
-    defaultWeight =  (pkg_resources.resource_filename(__name__, "pretrained/0.1.pt"))
+    defaultWeight =  (pkg_resources.resource_filename(__name__, "pretrained/2.0.pt"))
+    defaultConf =  (pkg_resources.resource_filename(__name__, "pretrained/2.0.conf"))
 
     argumentParser = argparse.ArgumentParser()
     argumentParser.add_argument("audioPath", help = "path to the input audio file")
     argumentParser.add_argument("outPath", help = "path to the output MIDI file")
     argumentParser.add_argument("--weight", default = defaultWeight, help = "path to the pretrained weight")
+    argumentParser.add_argument("--conf", default = defaultConf, help = "path to the model conf")
     argumentParser.add_argument("--device", default = "cpu", nargs= "?", help = " The device used to perform the most computations (optional), DEFAULT: cpu")
-    argumentParser.add_argument("--segmentHopSize", type=float, default = 10, help = " The segment hopsize for processing the entire audio file (s), DEFAULT: 10")
-    argumentParser.add_argument("--segmentSize", type=float, default = 20, help = " The segment size for processing the entire audio file (s), DEFAULT: 20")
+    argumentParser.add_argument("--segmentHopSize", type=float, required=False, help = " The segment hopsize for processing the entire audio file (s), DEFAULT: the value defined in model conf")
+    argumentParser.add_argument("--segmentSize", type=float, required=False, help = " The segment size for processing the entire audio file (s), DEFAULT: the value defined in model conf")
 
     args = argumentParser.parse_args()
 
     path = args.weight
     device = args.device
+
+    # TODO fix the conf
+    confPath = args.conf
+
+    confManager = moduleconf.parseFromFile(confPath)
+    TransKun = confManager["Model"].module.TransKun
+    conf = confManager["Model"].config
+
+
     checkpoint = torch.load(path, map_location = device)
 
 
-    conf = TransKun.Config()
-    conf.__dict__ = checkpoint['conf']
+    # conf = TransKun.Config()
+    # conf.__dict__ = checkpoint['conf']
 
     model = TransKun(conf = conf).to(device)
+    # print("#Param(M):", computeParamSize(model))
+
 
     if not "best_state_dict" in checkpoint:
         model.load_state_dict(checkpoint["state_dict"], strict=False)
