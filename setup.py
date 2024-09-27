@@ -3,7 +3,24 @@ import setuptools
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-requirements= [i.strip() for i in open("requirements.txt").readlines()]
+# requirements= [i.strip() for i in open("requirements.txt").readlines()]
+
+requirements = [
+"ncls",
+"pretty_midi",
+"scipy",
+"torchaudio",
+"torch",
+"mir_eval",
+"pydub",
+"seaborn",
+"matplotlib",
+"tensorboard",
+"tqdm",
+"torch_optimizer",
+"sox",
+"soxr"
+]
 
 
 setuptools.setup(
