@@ -1,6 +1,6 @@
 # Piano Transcription with Neural Semi-CRF
 
-Code and pip package have been updated. This README is now under construction. The shipped checkpoint is trained without pedal extension of notes, and with data augmentation. More checkpoints trained under different conditions will also be released soon. 
+Code and pip package have been updated. This README is now under construction. The shipped checkpoint is trained without pedal extension of notes, and with data augmentation (which I believe is closer to a real performance). More checkpoints trained under different conditions will also be released soon. 
 
 
 This repo contains code for following papers for transcribing expressive piano performance into MIDI.
