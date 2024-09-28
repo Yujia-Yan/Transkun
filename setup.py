@@ -19,13 +19,14 @@ requirements = [
 "tqdm",
 "torch_optimizer",
 "sox",
-"soxr"
+"soxr",
+"moduleconf"
 ]
 
 
 setuptools.setup(
     name="transkun",
-    version="2.0.0",
+    version="2.0.1",
     author="Yujia Yan",
     description='Yet another tool for automatic piano transcription',
     long_description=long_description,
