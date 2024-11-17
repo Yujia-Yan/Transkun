@@ -1,6 +1,5 @@
 # Piano Transcription with Neural Semi-CRF
 
-Code and pip package have been updated. This README is now under construction. The shipped checkpoint is trained without pedal extension of notes, and with data augmentation (which I believe is closer to a real performance). More checkpoints trained under different conditions will also be released soon. 
 
 
 This repo contains code for following papers for transcribing expressive piano performance into MIDI.
@@ -28,15 +27,25 @@ with cuda:
 ```bash
 $ transkun input.mp3 output.mid --device cuda
 ```
+The shipped checkpoint is trained without pedal extension of notes, and with data augmentation (which I believe is closer to a real performance). For more checkpoints, see [Model Cards](#model-cards)
+
 
 
 ## Overview
+
+
 <img width="1405" alt="image" src="https://user-images.githubusercontent.com/1996534/183318064-db32dbef-500d-4710-93a1-10acd3eb8825.png">
 
 This system works as follows: 
 1. A score tensor is computed from the input audio that scores every possible intervals for whether or not being an event.
 2. The score tensor computed in (1) is then decoded by the proposed semi-CRF layer to obtain event intervals directly via dynamic programming (viterbi).
 3. Attributes, e.g., velocity and refined onset/offset position, associated with each interval are then predicted from the extracted event intervals from (2).
+
+### V2 
+In V2, as demonsrated in ISMIR 2024 paper, changes from V1:
+1. the model architecture is replaced with a transformer
+2. The Score module is simplified with Scaled Inner Product Interval Scaling. The noise score is now zero tensor for compatibility with V1.
+3. Segmentwise processing now handles incomplete events for longer duration 
 
 ## Basic Usage
 
@@ -86,24 +95,23 @@ decoded = crf.decode(forcedStartPos = [4]*NBatch)
 ```bash
 python3 -m transkun.transcribe -h
 
-usage: transkun [-h] [--weight WEIGHT] [--device [DEVICE]] [--segmentHopSize SEGMENTHOPSIZE] [--segmentSize SEGMENTSIZE] audioPath outPath
+usage: transcribe.py [-h] [--weight WEIGHT] [--conf CONF] [--device [DEVICE]] [--segmentHopSize SEGMENTHOPSIZE] [--segmentSize SEGMENTSIZE] audioPath outPath
 
 positional arguments:
   audioPath             path to the input audio file
   outPath               path to the output MIDI file
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --weight WEIGHT       path to the pretrained weight
+  --conf CONF           path to the model conf
   --device [DEVICE]     The device used to perform the most computations (optional), DEFAULT: cpu
   --segmentHopSize SEGMENTHOPSIZE
-                        The segment hopsize for processing the entire audio file (s), DEFAULT: 10
+                        The segment hopsize for processing the entire audio file (s), DEFAULT: the value defined in model conf
   --segmentSize SEGMENTSIZE
-                        The segment size for processing the entire audio file (s), DEFAULT: 20
-```
+                        The segment size for processing the entire audio file (s), DEFAULT: the value defined in model conf
 
-Please note that segmentHopSize and segmentSize should be chosen such that there is an overlap between consecutive segments. 
-The included weight is trained under segmentHopSize = 10 and segmentSize = 20.
+```
 
 This script can also be used directly as the command line command 'transkun' if the pip package is installed, e.g., 
 
@@ -137,16 +145,6 @@ $ transkun input.mp3 output.mid
 
 We assume the data contains only the same sampling rate 44100hz. Therefore for the maestro dataset it is necessary to perform sampling rate conversion to 44100hz for the last two years (2017 and 2018) .  
 
-#### Justification for using the original sample rate
-
-Many exisiting works downsample the original audio files to a smaller sampling rate. And it seems quite "conventional" to do downsampling. However, from our perspective, this step is unnecessary:
-
-1. Spectral processing for getting the mel spectrum only incurs a small computation cost. However, a good quality downsampling algorithm is more expensive than computing the mel spectrum.
-
-2. Whether or not compute the spectrum from the downsampled version, the size of the input to the neural network is at the same range. 
-
-3. There is no need to load all data into memory as the wav file is random accessible. This work directly random acesses the wav file instead of using a specific file format. 
-
 ### Generating metadata files
 
 Assuming all audio files have already been converted to the same sampling rate, we iterate the entire dataset to combine the groundtruth midi and metadata into a single file.
@@ -173,11 +171,11 @@ This command will generate train.pt, dev.pt, test.pt in the outputPath.
 
 After generating the medata files, we can perform training using the dataset. During training, the audio waveforms will be fetched directly from the original .wav files.
 
-Firstly, generate a config template file for the model:
+Firstly, generate a config template file for the model.:
 
 ```bash
 mkdir checkpoint
-python3 -m transkun.generateConfig transkun.Model_ablation > checkpoint/conf.json
+python3 -m moduleconf.generate Model:transkun.ModelTransformer > checkpoint/conf.json
 ```
 
 Then we call the training script.
