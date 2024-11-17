@@ -42,10 +42,10 @@ This system works as follows:
 3. Attributes, e.g., velocity and refined onset/offset position, associated with each interval are then predicted from the extracted event intervals from (2).
 
 ### V2 
-In V2, as demonsrated in ISMIR 2024 paper, changes from V1:
+In V2, as demonstrated in the ISMIR 2024 paper, the changes from V1 are:
 1. the model architecture is replaced with a transformer
 2. The Score module is simplified with Scaled Inner Product Interval Scaling. The noise score is now zero tensor for compatibility with V1.
-3. Segmentwise processing now handles incomplete events for longer duration 
+3. Segmentwise processing now handles incomplete events for a longer duration 
 
 ## Basic Usage
 
@@ -134,7 +134,7 @@ $ transkun input.mp3 output.mid
 |                  |MAPS (ad hoc align) No Ext|0.9093    |0.6383|0.7465|0.941     |0.9044|0.922 |0.5577           |0.5369|0.5469|0.443                  |0.4266|0.4345|0.8753          |0.8471|0.8543|0.7107     |0.7525|0.721 |0.5331            |0.5612|0.5421|
 |                  |SMD No Ext                |0.8539    |0.8533|0.8524|0.9982    |0.9774|0.9876|0.7936           |0.7778|0.7855|0.7666                 |0.7513|0.7588|0.9483          |0.9453|0.9455|0.8812     |0.8067|0.8408|0.8215            |0.7539|0.7848|
 
-* offset derivations on MAPS deviates strongly from a Normal distribution, suggesting potential annotation issues.  ad hoc align is used to fix this bias
+* offsets on MAPS deviates strongly from a Normal distribution, suggesting potential annotation issues.  ad hoc align is used to fix this bias
 * Aug means the model is trained with data augmentation
 * No Ext means without pedal extension
 * The default checkpoint shipped with the code/pip package is Transkun V2 No Pedal Ext. Currently it is fine-tuned from Transkun V2 Aug, will train from scratch in the future.
@@ -169,7 +169,7 @@ This command will generate train.pt, dev.pt, test.pt in the outputPath.
 
 ## Training
 
-After generating the medata files, we can perform training using the dataset. During training, the audio waveforms will be fetched directly from the original .wav files.
+After generating the metadata files, we can perform training using the dataset. During training, the audio waveforms will be fetched directly from the original .wav files.
 
 Firstly, generate a config template file for the model.:
 
@@ -208,7 +208,7 @@ options:
   -h, --help            show this help message and exit
   --outputJSON OUTPUTJSON
                         path to save the output file for detailed metrics per audio file
-  --noPedalExtension    Do not perform pedal extension according to the sustain pedal for the ground truch
+  --noPedalExtension    Do not perform pedal extension according to the sustain pedal for the ground truth
   --applyPedalExtensionOnEstimated
                         perform pedal extension for the estimated midi
   --nProcess [NPROCESS]
