@@ -27,7 +27,9 @@ with cuda:
 ```bash
 $ transkun input.mp3 output.mid --device cuda
 ```
-The shipped checkpoint is trained without pedal extension of notes, and with data augmentation (which I believe is closer to a real performance). For more checkpoints, see [Model Cards](#model-cards)
+
+**Note:** The code/pip package shipped checkpoint is trained **without pedal extension of notes**, and **with data augmentation**,which I believe is closer to a real performance. 
+Be cautious that the convention for the piano transcription task in previous works is extending all notes by sustain pedal durations. For more checkpoints, see [Model Cards](#model-cards)
 
 
 
@@ -45,7 +47,7 @@ This system works as follows:
 In V2, as demonstrated in the ISMIR 2024 paper, the changes from V1 are:
 1. the model architecture is replaced with a transformer
 2. The Score module is simplified with Scaled Inner Product Interval Scaling. The noise score is now zero tensor for compatibility with V1.
-3. Segmentwise processing now handles incomplete events for a longer duration 
+3. Segmentwise processing now handles incomplete events with a longer duration 
 
 ## Basic Usage
 
