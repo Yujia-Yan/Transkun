@@ -55,7 +55,6 @@ def eval(args):
             n.start += maxDevOnset - medianOnsetDev
             n.end += maxDevOnset -medianOnsetDev
 
-        # r = (random.random()*2-1)*0.005
 
         for n in notesEst:
             n.start += maxDevOnset 
@@ -97,7 +96,6 @@ def main():
     argParser.add_argument("--noPedalExtension", action='store_true', help = "Do not perform pedal extension according to the sustain pedal for the ground truch")
     argParser.add_argument("--applyPedalExtensionOnEstimated", action='store_true', help = "perform pedal extension for the estimated midi")
     argParser.add_argument("--nProcess", nargs="?", type=int, default = 1, help = "number of workers for multiprocessing")
-    argParser.add_argument("--computeDeviations", action='store_true', help = "output detailed onset/offset deviations for each matched note.")
     argParser.add_argument("--alignOnset", action='store_true', help = "whether or not realign the onset.")
     argParser.add_argument("--dither", default = 0.0, type = float, help = "amount of noise added to the prediction.")
     argParser.add_argument("--pedalOffset", default=0.0, type=float, help = "offset added to the groundTruth sustain pedal when extending notes")
@@ -118,7 +116,7 @@ def main():
     outputJSON= args.outputJSON
     extendPedal = not args.noPedalExtension
     extendPedalEst = args.applyPedalExtensionOnEstimated
-    computeDeviations = args.computeDeviations
+    computeDeviations = True
     nProcess = args.nProcess
     pedalOffset = args.pedalOffset
     alignOnset = args.alignOnset
