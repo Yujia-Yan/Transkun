@@ -191,7 +191,9 @@ python3 -m transkun.train -h
 We also provide an out-of-box tool for computing metrics directly from output midi files.
 
 ```bash
-usage: computeMetrics.py [-h] [--outputJSON OUTPUTJSON] [--noPedalExtension] [--nProcess [NPROCESS]] [--computeDeviations] estDIR groundTruthDIR
+usage: computeMetrics.py [-h] [--outputJSON OUTPUTJSON] [--noPedalExtension] [--applyPedalExtensionOnEstimated] [--nProcess [NPROCESS]] [--alignOnset] [--dither DITHER]
+                         [--pedalOffset PEDALOFFSET] [--onsetTolerance ONSETTOLERANCE]
+                         estDIR groundTruthDIR
 
 compute metrics directly from MIDI files.
 Note that estDIR should have the same folder structure as the groundTruthDIR.
@@ -202,14 +204,22 @@ positional arguments:
   estDIR
   groundTruthDIR
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --outputJSON OUTPUTJSON
                         path to save the output file for detailed metrics per audio file
   --noPedalExtension    Do not perform pedal extension according to the sustain pedal for the ground truch
+  --applyPedalExtensionOnEstimated
+                        perform pedal extension for the estimated midi
   --nProcess [NPROCESS]
                         number of workers for multiprocessing
-  --computeDeviations   output detailed onset/offset deviations for each matched note.
+  --alignOnset          whether or not to realign the onset.
+  --dither DITHER       amount of noise added to the prediction.
+  --pedalOffset PEDALOFFSET
+                        offset added to the groundTruth sustain pedal when extending notes
+  --onsetTolerance ONSETTOLERANCE
+                        onset tolerance, default: 0.05 (50ms)
+
 ```
 
 Currently, we do not support evaluation of multitrack MIDIs.
@@ -221,21 +231,27 @@ This command can also be used directly as the command line script 'transkunEval'
 Use the following script to plot the ECDF curve for onset/offset deviations:
 
 ```bash
-usage: plotDeviation.py [-h] [--labels [LABELS [LABELS ...]]] [--offset] [--T T] [--output [OUTPUT]] [--noDisplay] evalJsons [evalJsons ...]
+usage: plotDeviation.py [-h] [--labels [LABELS ...]] [--offset] [--T T] [--output [OUTPUT]] [--noDisplay] [--cumulative] [--absolute] [--targetPitch TARGETPITCH]
+                        evalJsons [evalJsons ...]
 
 plot the empirical cumulative distribution function on onset/offset deviations
 
 positional arguments:
   evalJsons             a seqeunce of the output json files from the computeMetrics script, the deviation output should be enabled
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  --labels [LABELS [LABELS ...]]
+  --labels [LABELS ...]
                         specify labels to show on the legend
   --offset              plot the offset deviation curve. If not specified, onset deviation curve will be plotted
   --T T                 time limit(ms), default: 50ms
   --output [OUTPUT]     filename to save
   --noDisplay           Do not show the figure.
+  --cumulative          plot the empirical cumulative density. 
+  --absolute            use absolute deviation.
+  --targetPitch TARGETPITCH
+                        only plot specific number.
+
 ```
 
 ![loading-ag-1328](./assets/exampleDev.png)
@@ -256,5 +272,15 @@ booktitle={Advances in Neural Information Processing Systems},
 editor={A. Beygelzimer and Y. Dauphin and P. Liang and J. Wortman Vaughan},
 year={2021},
 url={https://openreview.net/forum?id=AzB2Pq7UFsA}
+}
+```
+
+
+```bibtex
+@inproceedings{yan2024scoring,
+  author    = {Yujia Yan and Zhiyao Duan},
+  title     = {Scoring Time Intervals Using Non-Hierarchical Transformer for Automatic Piano Transcription},
+  booktitle = {Proc. International Society for Music Information Retrieval Conference (ISMIR)},
+  year      = {2024},
 }
 ```
