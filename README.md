@@ -28,7 +28,7 @@ $ transkun input.mp3 output.mid --device cuda
 ```
 
 **Note:** The code/pip package shipped checkpoint is trained **without pedal extension of notes**, and **with data augmentation**,which I believe is closer to a real performance. 
-Be cautious that the convention for the piano transcription task in previous works is extending all notes by sustain pedal durations. For more checkpoints, e.g, the ones used in the paper, see [Model Cards](#model-cards)
+Be cautious that the convention for the piano transcription task in previous works is extending all notes by sustain pedal durations. For more checkpoints, e.g, those reported in the paper, see [Model Cards](#model-cards)
 
 
 
