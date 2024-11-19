@@ -139,6 +139,7 @@ $ transkun input.mp3 output.mid
 * Aug means the model is trained with data augmentation
 * No Ext means without pedal extension
 * The default checkpoint shipped with the code/pip package is Transkun V2 No Pedal Ext. Currently it is fine-tuned from Transkun V2 Aug, will train from scratch in the future.
+* There's some minor bug fixes since the paper, the results listed here reflect the latest version which may differ slightly from the paper.
 
 ## Handling the dataset
 
