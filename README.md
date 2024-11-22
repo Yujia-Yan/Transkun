@@ -8,6 +8,9 @@ This repo contains code for following papers for transcribing expressive piano p
 > Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-CRFs, Advances in Neural Information Processing Systems, 2021, 
 [OpenReview](https://openreview.net/forum?id=DGA8XbJ8FVd), [paper](https://openreview.net/pdf?id=DGA8XbJ8FVd), [appendix](https://openreview.net/attachment?id=DGA8XbJ8FVd&name=supplementary_material)
 
+## Demo Video:
+[![Demo Video](https://img.youtube.com/vi/6P3kFHUBicw/0.jpg)](https://www.youtube.com/watch?v=6P3kFHUBicw)
+
 
 ## pip installation
 
